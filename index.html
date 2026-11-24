@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="vi" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalVault — Quản Lý Tệp & Trình Phát Đa Phương Tiện</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#151e32',
+              925: '#0b1120',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom minimal scrollbars for dark mode */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* Subtle pulse animation for active audio */
+    @keyframes equalizer {
+      0%, 100% { height: 25%; }
+      50% { height: 95%; }
+    }
+    .eq-bar {
+      animation: equalizer 0.9s ease-in-out infinite;
+    }
+    .eq-bar:nth-child(2) { animation-delay: 0.2s; }
+    .eq-bar:nth-child(3) { animation-delay: 0.4s; }
+    .eq-bar:nth-child(4) { animation-delay: 0.15s; }
+    .paused .eq-bar {
+      animation-play-state: paused;
+      height: 25% !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased h-screen flex flex-col overflow-hidden selection:bg-indigo-500/30 selection:text-indigo-200">
+
+  <!-- Hidden Fallback Inputs for Sandboxed Environments / Older Browsers -->
+  <input type="file" id="fallbackFolderInput" webkitdirectory directory multiple class="hidden" />
+  <input type="file" id="fallbackFilesInput" multiple class="hidden" />
+
+  <!-- Top Header Bar -->
+  <header class="h-14 border-b border-slate-800/80 bg-slate-900/90 backdrop-blur-md px-3 sm:px-5 flex items-center justify-between gap-3 shrink-0 z-20">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <!-- Mobile Sidebar Toggle -->
+      <button id="toggleSidebarBtn" class="lg:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" title="Danh sách tệp">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h10"/>
+        </svg>
+      </button>
+
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+        </svg>
+      </div>
+      <div class="truncate">
+        <h1 class="text-sm sm:text-base font-semibold tracking-tight text-white truncate">LocalVault</h1>
+        <p id="modeBadge" class="text-[11px] text-slate-400 hidden sm:block">Quản lý tệp & Media cục bộ</p>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex items-center gap-2 shrink-0">
+      <button id="newTxtBtn" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 transition-all" title="Tạo file .txt mới trong thư mục hiện tại">
+        <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        <span class="hidden sm:inline">Tạo .TXT</span>
+      </button>
+
+      <button id="openFilesBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700/80 transition-all" title="Chọn nhanh nhiều tệp từ máy tính">
+        <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <span class="hidden md:inline">Chọn tệp</span>
+      </button>
+
+      <button id="openFolderBtn" class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition-all">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/>
+        </svg>
+        <span>Mở thư mục</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Workspace (Split-Pane Layout) -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- Mobile Backdrop -->
+    <div id="sidebarBackdrop" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-20 hidden lg:hidden"></div>
+
+    <!-- Left Sidebar: File Explorer -->
+    <aside id="sidebar" class="fixed lg:static inset-y-0 left-0 top-14 lg:top-0 w-80 sm:w-96 bg-slate-900 border-r border-slate-800/80 flex flex-col z-30 transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-out shrink-0">
+
+      <!-- Search & Filter Controls -->
+      <div class="p-3 border-b border-slate-800/80 space-y-2.5 bg-slate-900/95">
+        <!-- Search Input -->
+        <div class="relative">
+          <svg class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Tìm trong toàn bộ thư mục con..."
+            class="w-full bg-slate-950/90 border border-slate-800 focus:border-indigo-500 rounded-lg pl-9 pr-8 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition-colors"
+          />
+          <button id="clearSearchBtn" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Type Filter Pills -->
+        <div class="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar" id="filterPills">
+          <button data-filter="all" class="filter-pill active px-2.5 py-1 rounded-md text-[11px] font-medium bg-indigo-600 text-white shrink-0 transition-colors">Tất cả</button>
+          <button data-filter="audio" class="filter-pill px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800/80 text-slate-400 hover:text-slate-200 shrink-0 transition-colors">Nhạc</button>
+          <button data-filter="video" class="filter-pill px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800/80 text-slate-400 hover:text-slate-200 shrink-0 transition-colors">Video</button>
+          <button data-filter="pdf" class="filter-pill px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800/80 text-slate-400 hover:text-slate-200 shrink-0 transition-colors">PDF</button>
+          <button data-filter="text" class="filter-pill px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800/80 text-slate-400 hover:text-slate-200 shrink-0 transition-colors">Văn bản</button>
+          <button data-filter="image" class="filter-pill px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800/80 text-slate-400 hover:text-slate-200 shrink-0 transition-colors">Ảnh</button>
+        </div>
+      </div>
+
+      <!-- Breadcrumb Navigation -->
+      <div id="breadcrumbBar" class="hidden px-3 py-2 bg-slate-950/60 border-b border-slate-800/70 flex items-center gap-1 overflow-x-auto text-xs text-slate-400 shrink-0">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Recursive Search Status Banner -->
+      <div id="searchStatusBanner" class="hidden px-3 py-1.5 bg-indigo-950/50 border-b border-indigo-500/20 flex items-center justify-between gap-2 text-[11px] text-indigo-300 shrink-0">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <svg id="searchSpinner" class="hidden w-3.5 h-3.5 text-indigo-400 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+          <span id="searchStatusText" class="truncate">Kết quả trên toàn thư mục</span>
+        </div>
+        <button id="exitSearchBtn" class="text-[10px] font-medium text-indigo-300 hover:text-white underline shrink-0">Thoát tìm kiếm</button>
+      </div>
+
+      <!-- File & Folder List -->
+      <div id="fileListContainer" class="flex-1 overflow-y-auto p-2 space-y-0.5">
+        <!-- Empty State -->
+        <div id="emptyExplorerState" class="h-full flex flex-col items-center justify-center text-center px-6 py-10">
+          <div class="w-12 h-12 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center mb-3 text-slate-400">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+            </svg>
+          </div>
+          <p class="text-xs font-medium text-slate-300 mb-1">Chưa mở thư mục nào</p>
+          <p class="text-[11px] text-slate-500 leading-relaxed mb-4">
+            Nhấn <span class="text-indigo-400 font-medium">"Mở thư mục"</span> để duyệt tệp trên máy tính của bạn.
+          </p>
+          <button onclick="document.getElementById('openFolderBtn').click()" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition-colors">
+            Chọn thư mục ngay
+          </button>
+        </div>
+      </div>
+
+      <!-- Sidebar Footer Status -->
+      <div id="sidebarFooter" class="px-3 py-2 border-t border-slate-800/80 bg-slate-900/95 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
+        <span id="itemCountText">0 mục</span>
+        <span id="accessTypeText" class="truncate max-w-[160px]">Sẵn sàng</span>
+      </div>
+    </aside>
+
+    <!-- Right Main Content Area: Media & Document Viewer -->
+    <main class="flex-1 flex flex-col bg-slate-950 overflow-hidden min-w-0">
+
+      <!-- Active File Top Info Bar (Hidden when nothing is open) -->
+      <div id="viewerHeader" class="hidden h-12 px-4 border-b border-slate-800/80 bg-slate-900/50 flex items-center justify-between gap-3 shrink-0">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span id="activeFileBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold uppercase bg-slate-800 text-slate-300 border border-slate-700 shrink-0">FILE</span>
+          <h2 id="activeFileName" class="text-xs sm:text-sm font-medium text-slate-100 truncate">filename.ext</h2>
+          <span id="activeFileSize" class="text-[11px] text-slate-500 hidden sm:inline shrink-0">0 KB</span>
+        </div>
+
+        <div id="viewerHeaderActions" class="flex items-center gap-2 shrink-0">
+          <!-- Dynamic action buttons per file type (e.g., Save TXT, Open PDF in tab, Download) -->
+        </div>
+      </div>
+
+      <!-- Viewer Canvas -->
+      <div id="viewerStage" class="flex-1 overflow-auto relative flex flex-col">
+
+        <!-- Default Welcome Screen -->
+        <div id="welcomeViewer" class="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-lg mx-auto">
+          <div class="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-5 shadow-xl">
+            <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-white mb-2">Trình xem & Phát tệp đa năng</h2>
+          <p class="text-xs sm:text-sm text-slate-400 leading-relaxed mb-6">
+            Mở thư mục từ máy tính để duyệt tệp nhanh chóng. Hỗ trợ phát nhạc trực tiếp, xem video HD, đọc tài liệu PDF, xem ảnh và chỉnh sửa tệp văn bản ngay trên trình duyệt mà không tải dữ liệu lên mạng.
+          </p>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full text-left">
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90">
+              <div class="text-pink-400 font-semibold text-xs mb-0.5">Âm thanh</div>
+              <div class="text-[11px] text-slate-500 font-mono">.mp3 .wav .ogg</div>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90">
+              <div class="text-purple-400 font-semibold text-xs mb-0.5">Video</div>
+              <div class="text-[11px] text-slate-500 font-mono">.mp4 .webm .mkv</div>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90">
+              <div class="text-rose-400 font-semibold text-xs mb-0.5">Tài liệu</div>
+              <div class="text-[11px] text-slate-500 font-mono">.pdf</div>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800/90">
+              <div class="text-emerald-400 font-semibold text-xs mb-0.5">Văn bản</div>
+              <div class="text-[11px] text-slate-500 font-mono">.txt .md .json</div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-500">
+            <span class="flex items-center gap-1.5"><kbd class="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400 font-mono">Space</kbd> Phát / Tạm dừng</span>
+            <span class="flex items-center gap-1.5"><kbd class="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-400 font-mono">Ctrl + S</kbd> Lưu tệp TXT</span>
+          </div>
+        </div>
+
+        <!-- 1. AUDIO PLAYER VIEW -->
+        <div id="audioViewer" class="hidden flex-1 flex flex-col items-center justify-center p-6">
+          <div class="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-2xl">
+            <!-- Album Art / Equalizer Indicator -->
+            <div class="w-36 h-36 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-indigo-600/20 via-purple-600/20 to-pink-600/20 border border-indigo-500/20 flex flex-col items-center justify-center relative overflow-hidden">
+              <svg class="w-12 h-12 text-indigo-400 mb-2" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+              </svg>
+              <div id="eqVisualizer" class="paused flex items-end gap-1 h-5">
+                <span class="eq-bar w-1 bg-indigo-400 rounded-full"></span>
+                <span class="eq-bar w-1 bg-cyan-400 rounded-full"></span>
+                <span class="eq-bar w-1 bg-pink-400 rounded-full"></span>
+                <span class="eq-bar w-1 bg-indigo-400 rounded-full"></span>
+              </div>
+            </div>
+
+            <div class="text-center mb-5">
+              <h3 id="audioTitle" class="text-base font-semibold text-white truncate px-2">Tên bài hát</h3>
+              <p id="audioTrackIndex" class="text-xs text-slate-400 mt-1">Bài 1 / 1</p>
+            </div>
+
+            <!-- Native HTML5 Audio Element -->
+            <audio id="audioElement" controls class="w-full mb-5 rounded-lg"></audio>
+
+            <!-- Custom Controls: Prev, Loop, Speed, Next -->
+            <div class="flex items-center justify-between gap-2 pt-3 border-t border-slate-800/80">
+              <button id="prevTrackBtn" class="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-colors" title="Bài trước">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
+                </svg>
+                <span>Trước</span>
+              </button>
+
+              <div class="flex items-center gap-2">
+                <button id="audioLoopBtn" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors" title="Lặp lại bài hiện tại">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  </svg>
+                </button>
+
+                <select id="audioSpeedSelect" class="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-xl px-2.5 py-2 outline-none focus:border-indigo-500" title="Tốc độ phát">
+                  <option value="0.75">0.75x</option>
+                  <option value="1" selected>1.0x</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="2">2.0x</option>
+                </select>
+              </div>
+
+              <button id="nextTrackBtn" class="flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-colors" title="Bài tiếp theo">
+                <span>Tiếp</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. VIDEO PLAYER VIEW -->
+        <div id="videoViewer" class="hidden flex-1 flex flex-col items-center justify-center p-4 sm:p-6 bg-black/40">
+          <div class="w-full max-w-5xl flex flex-col gap-3">
+            <div class="relative rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex items-center justify-center">
+              <video id="videoElement" controls playsinline class="w-full max-h-[72vh] outline-none"></video>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-800 text-xs">
+              <div class="flex items-center gap-2 text-slate-400">
+                <span>Tốc độ phát:</span>
+                <div class="flex items-center gap-1" id="videoSpeedGroup">
+                  <button data-speed="0.75" class="v-speed-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">0.75x</button>
+                  <button data-speed="1" class="v-speed-btn px-2 py-1 rounded bg-indigo-600 text-white font-medium">1x</button>
+                  <button data-speed="1.25" class="v-speed-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1.25x</button>
+                  <button data-speed="1.5" class="v-speed-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">1.5x</button>
+                  <button data-speed="2" class="v-speed-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2x</button>
+                </div>
+              </div>
+
+              <button id="videoFullscreenBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+                </svg>
+                <span>Toàn màn hình</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. PDF VIEWER -->
+        <div id="pdfViewer" class="hidden flex-1 flex flex-col w-full h-full bg-slate-900">
+          <iframe id="pdfFrame" class="w-full flex-1 border-0" title="Trình đọc PDF"></iframe>
+        </div>
+
+        <!-- 4. TEXT VIEWER & EDITOR -->
+        <div id="textViewer" class="hidden flex-1 flex flex-col w-full h-full">
+          <!-- Text Sub-toolbar -->
+          <div class="px-4 py-2 bg-slate-900/70 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+            <div class="flex items-center gap-3 text-slate-400 font-mono text-[11px]">
+              <span id="textStats">0 dòng · 0 ký tự</span>
+              <span id="unsavedIndicator" class="hidden text-amber-400 font-sans font-medium">● Chưa lưu thay đổi</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <div class="relative">
+                <input
+                  type="text"
+                  id="findInTextInput"
+                  placeholder="Tìm trong văn bản..."
+                  class="bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 outline-none w-40 sm:w-52"
+                />
+              </div>
+              <button id="findNextTextBtn" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition-colors">
+                Tìm tiếp
+              </button>
+            </div>
+          </div>
+
+          <!-- Textarea Editor -->
+          <textarea
+            id="textEditorArea"
+            spellcheck="false"
+            placeholder="Nội dung tệp văn bản..."
+            class="flex-1 w-full bg-slate-950 text-slate-200 font-mono text-xs sm:text-sm leading-relaxed p-4 sm:p-6 outline-none resize-none selection:bg-indigo-500/40"
+          ></textarea>
+        </div>
+
+        <!-- 5. IMAGE VIEWER (Bonus) -->
+        <div id="imageViewer" class="hidden flex-1 flex items-center justify-center p-6 overflow-auto bg-slate-950">
+          <img id="imageElement" alt="Xem trước hình ảnh" class="max-w-full max-h-[80vh] rounded-xl border border-slate-800 shadow-2xl object-contain" />
+        </div>
+
+        <!-- 6. UNSUPPORTED FILE VIEW -->
+        <div id="unsupportedViewer" class="hidden flex-1 flex flex-col items-center justify-center p-6 text-center">
+          <div class="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-3 text-slate-400">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <h3 class="text-sm font-semibold text-slate-200 mb-1">Không hỗ trợ xem trực tiếp định dạng này</h3>
+          <p class="text-xs text-slate-500 mb-4 max-w-sm">Bạn vẫn có thể tải xuống hoặc mở bằng ứng dụng mặc định trên máy tính.</p>
+          <button id="downloadUnsupportedBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white transition-colors">
+            Tải tệp xuống
+          </button>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Custom Modal for Creating New TXT or Confirming Delete (No alert/confirm used) -->
+  <div id="customModal" class="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-2xl">
+      <h3 id="modalTitle" class="text-sm font-semibold text-white mb-1.5">Tiêu đề</h3>
+      <p id="modalDesc" class="text-xs text-slate-400 mb-4 leading-relaxed">Mô tả</p>
+      <div id="modalInputWrap" class="mb-4 hidden">
+        <input type="text" id="modalInput" placeholder="ghi-chu.txt" class="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg px-3 py-2 text-xs text-white outline-none" />
+      </div>
+      <div class="flex items-center justify-end gap-2">
+        <button id="modalCancelBtn" class="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition-colors">Hủy</button>
+        <button id="modalConfirmBtn" class="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors">Xác nhận</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    /**
+     * LocalVault - Trình Quản Lý Tệp & Phát Đa Phương Tiện Cục Bộ
+     * Hỗ trợ File System Access API (Chrome/Edge) và Fallback Input (Safari/Firefox/Iframe).
+     */
+
+    // ==========================================
+    // 1. STATE MANAGEMENT
+    // ==========================================
+    const state = {
+      mode: null, // 'fsa' (File System Access API) | 'fallback' (FileList)
+      dirStack: [], // Array of { name, handle } for FSA mode (index 0 is root)
+      entries: [], // Current directory items: { name, kind: 'directory'|'file', category, size, handle?, file?, ext }
+      fallbackTree: null, // Virtual folder tree when using webkitdirectory
+      fallbackPath: [], // Array of folder names in fallback mode
+      currentFilter: 'all',
+      searchQuery: '',
+      searchResults: [], // Recursive search matches across entire root tree
+      isSearching: false,
+      searchToken: 0, // Incremental token to cancel stale recursive scans
+      searchDebounceTimer: null,
+      activeEntry: null,
+      activeBlobUrl: null,
+      audioPlaylist: [],
+      currentAudioIndex: -1,
+      textDirty: false,
+      lastSearchIndex: 0
+    };
+
+    // File Extensions Mapping
+    const EXT_MAP = {
+      audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'],
+      video: ['mp4', 'webm', 'mkv', 'mov', 'avi'],
+      pdf: ['pdf'],
+      text: ['txt', 'md', 'json', 'csv', 'js', 'ts', 'py', 'html', 'css', 'xml', 'log', 'ini', 'yaml', 'yml'],
+      image: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp']
+    };
+
+    // ==========================================
+    // 2. DOM REFERENCES
+    // ==========================================
+    const el = {
+      openFolderBtn: document.getElementById('openFolderBtn'),
+      openFilesBtn: document.getElementById('openFilesBtn'),
+      newTxtBtn: document.getElementById('newTxtBtn'),
+      fallbackFolderInput: document.getElementById('fallbackFolderInput'),
+      fallbackFilesInput: document.getElementById('fallbackFilesInput'),
+      modeBadge: document.getElementById('modeBadge'),
+
+      sidebar: document.getElementById('sidebar'),
+      sidebarBackdrop: document.getElementById('sidebarBackdrop'),
+      toggleSidebarBtn: document.getElementById('toggleSidebarBtn'),
+
+      searchInput: document.getElementById('searchInput'),
+      clearSearchBtn: document.getElementById('clearSearchBtn'),
+      filterPills: document.querySelectorAll('.filter-pill'),
+      breadcrumbBar: document.getElementById('breadcrumbBar'),
+      searchStatusBanner: document.getElementById('searchStatusBanner'),
+      searchSpinner: document.getElementById('searchSpinner'),
+      searchStatusText: document.getElementById('searchStatusText'),
+      exitSearchBtn: document.getElementById('exitSearchBtn'),
+      fileListContainer: document.getElementById('fileListContainer'),
+      emptyExplorerState: document.getElementById('emptyExplorerState'),
+      itemCountText: document.getElementById('itemCountText'),
+      accessTypeText: document.getElementById('accessTypeText'),
+
+      viewerHeader: document.getElementById('viewerHeader'),
+      activeFileBadge: document.getElementById('activeFileBadge'),
+      activeFileName: document.getElementById('activeFileName'),
+      activeFileSize: document.getElementById('activeFileSize'),
+      viewerHeaderActions: document.getElementById('viewerHeaderActions'),
+
+      welcomeViewer: document.getElementById('welcomeViewer'),
+      audioViewer: document.getElementById('audioViewer'),
+      videoViewer: document.getElementById('videoViewer'),
+      pdfViewer: document.getElementById('pdfViewer'),
+      textViewer: document.getElementById('textViewer'),
+      imageViewer: document.getElementById('imageViewer'),
+      unsupportedViewer: document.getElementById('unsupportedViewer'),
+
+      audioElement: document.getElementById('audioElement'),
+      audioTitle: document.getElementById('audioTitle'),
+      audioTrackIndex: document.getElementById('audioTrackIndex'),
+      eqVisualizer: document.getElementById('eqVisualizer'),
+      prevTrackBtn: document.getElementById('prevTrackBtn'),
+      nextTrackBtn: document.getElementById('nextTrackBtn'),
+      audioLoopBtn: document.getElementById('audioLoopBtn'),
+      audioSpeedSelect: document.getElementById('audioSpeedSelect'),
+
+      videoElement: document.getElementById('videoElement'),
+      videoSpeedBtns: document.querySelectorAll('.v-speed-btn'),
+      videoFullscreenBtn: document.getElementById('videoFullscreenBtn'),
+
+      pdfFrame: document.getElementById('pdfFrame'),
+
+      textEditorArea: document.getElementById('textEditorArea'),
+      textStats: document.getElementById('textStats'),
+      unsavedIndicator: document.getElementById('unsavedIndicator'),
+      findInTextInput: document.getElementById('findInTextInput'),
+      findNextTextBtn: document.getElementById('findNextTextBtn'),
+
+      imageElement: document.getElementById('imageElement'),
+      downloadUnsupportedBtn: document.getElementById('downloadUnsupportedBtn'),
+
+      customModal: document.getElementById('customModal'),
+      modalTitle: document.getElementById('modalTitle'),
+      modalDesc: document.getElementById('modalDesc'),
+      modalInputWrap: document.getElementById('modalInputWrap'),
+      modalInput: document.getElementById('modalInput'),
+      modalCancelBtn: document.getElementById('modalCancelBtn'),
+      modalConfirmBtn: document.getElementById('modalConfirmBtn'),
+      toastContainer: document.getElementById('toastContainer')
+    };
+
+    // ==========================================
+    // 3. UTILITY FUNCTIONS
+    // ==========================================
+    function showToast(message, type = 'info') {
+      const colors = {
+        info: 'bg-slate-800 border-slate-700 text-slate-100',
+        success: 'bg-emerald-950/90 border-emerald-700/70 text-emerald-200',
+        error: 'bg-rose-950/90 border-rose-700/70 text-rose-200',
+        warning: 'bg-amber-950/90 border-amber-700/70 text-amber-200'
+      };
+      const toast = document.createElement('div');
+      toast.className = `px-3.5 py-2.5 rounded-xl border text-xs font-medium shadow-xl backdrop-blur-md transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+      toast.textContent = message;
+      el.toastContainer.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function openModal({ title, desc, showInput = false, defaultValue = '', confirmText = 'Xác nhận', isDanger = false }) {
+      return new Promise((resolve) => {
+        el.modalTitle.textContent = title;
+        el.modalDesc.textContent = desc;
+        el.modalConfirmBtn.textContent = confirmText;
+        el.modalConfirmBtn.className = isDanger
+          ? 'px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-xs font-semibold text-white transition-colors'
+          : 'px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold text-white transition-colors';
+
+        if (showInput) {
+          el.modalInputWrap.classList.remove('hidden');
+          el.modalInput.value = defaultValue;
+        } else {
+          el.modalInputWrap.classList.add('hidden');
+        }
+
+        el.customModal.classList.remove('hidden');
+        el.customModal.classList.add('flex');
+        if (showInput) setTimeout(() => el.modalInput.focus(), 50);
+
+        const cleanup = (val) => {
+          el.customModal.classList.add('hidden');
+          el.customModal.classList.remove('flex');
+          el.modalConfirmBtn.onclick = null;
+          el.modalCancelBtn.onclick = null;
+          el.modalInput.onkeydown = null;
+          resolve(val);
+        };
+
+        el.modalCancelBtn.onclick = () => cleanup(null);
+        el.modalConfirmBtn.onclick = () => cleanup(showInput ? el.modalInput.value.trim() : true);
+        el.modalInput.onkeydown = (e) => {
+          if (e.key === 'Enter') cleanup(el.modalInput.value.trim());
+          if (e.key === 'Escape') cleanup(null);
+        };
+      });
+    }
+
+    function getFileExtension(filename) {
+      const parts = filename.split('.');
+      return parts.length > 1 ? parts.pop().toLowerCase() : '';
+    }
+
+    function getFileCategory(filename) {
+      const ext = getFileExtension(filename);
+      for (const [cat, list] of Object.entries(EXT_MAP)) {
+        if (list.includes(ext)) return cat;
+      }
+      return 'other';
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === undefined || bytes === null) return '';
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function getCategoryIcon(kind, category) {
+      if (kind === 'directory') {
+        return `<svg class="w-4 h-4 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>`;
+      }
+      switch (category) {
+        case 'audio':
+          return `<svg class="w-4 h-4 text-pink-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/></svg>`;
+        case 'video':
+          return `<svg class="w-4 h-4 text-purple-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>`;
+        case 'pdf':
+          return `<svg class="w-4 h-4 text-rose-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>`;
+        case 'text':
+          return `<svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
+        case 'image':
+          return `<svg class="w-4 h-4 text-cyan-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>`;
+        default:
+          return `<svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>`;
+      }
+    }
+
+    function revokeActiveBlob() {
+      if (state.activeBlobUrl) {
+        URL.revokeObjectURL(state.activeBlobUrl);
+        state.activeBlobUrl = null;
+      }
+    }
+
+    function toggleMobileSidebar(forceClose = false) {
+      if (forceClose) {
+        el.sidebar.classList.add('-translate-x-full');
+        el.sidebarBackdrop.classList.add('hidden');
+      } else {
+        el.sidebar.classList.toggle('-translate-x-full');
+        el.sidebarBackdrop.classList.toggle('hidden');
+      }
+    }
+
+    // ==========================================
+    // 4. FOLDER & FILE ACCESS LOGIC
+    // ==========================================
+    async function handleOpenFolder() {
+      // Check if File System Access API is available and not blocked by cross-origin iframe
+      if ('showDirectoryPicker' in window) {
+        try {
+          const rootHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+          state.mode = 'fsa';
+          state.dirStack = [{ name: rootHandle.name, handle: rootHandle }];
+          state.searchToken++;
+          state.searchResults = [];
+          el.newTxtBtn.classList.remove('hidden');
+          el.newTxtBtn.classList.add('flex');
+          el.accessTypeText.textContent = 'Chế độ đọc/ghi trực tiếp';
+          await loadFSADirectory(rootHandle);
+          if (state.searchQuery.trim()) triggerRecursiveSearch(true);
+          showToast(`Đã mở thư mục "${rootHandle.name}"`, 'success');
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return; // User cancelled
+          console.warn('File System Access API bị hạn chế, chuyển sang chế độ dự phòng:', err);
+        }
+      }
+      // Fallback to webkitdirectory input
+      el.fallbackFolderInput.click();
+    }
+
+    async function loadFSADirectory(dirHandle) {
+      const items = [];
+      for await (const [name, handle] of dirHandle.entries()) {
+        if (handle.kind === 'directory') {
+          items.push({
+            name,
+            kind: 'directory',
+            category: 'folder',
+            handle
+          });
+        } else {
+          let size = 0;
+          try {
+            const file = await handle.getFile();
+            size = file.size;
+          } catch (_) {}
+          items.push({
+            name,
+            kind: 'file',
+            category: getFileCategory(name),
+            ext: getFileExtension(name),
+            size,
+            handle
+          });
+        }
+      }
+      sortEntries(items);
+      state.entries = items;
+      updateAudioPlaylist();
+      renderBreadcrumbs();
+      renderFileList();
+    }
+
+    // ==========================================
+    // 4B. RECURSIVE SEARCH ENGINE (ALL SUBFOLDERS)
+    // ==========================================
+    function isRecursiveSearchActive() {
+      return Boolean(state.mode && state.searchQuery.trim().length > 0);
+    }
+
+    function triggerRecursiveSearch(immediate = false) {
+      clearTimeout(state.searchDebounceTimer);
+      const query = state.searchQuery.trim();
+
+      if (!state.mode || !query) {
+        state.searchToken++;
+        state.isSearching = false;
+        state.searchResults = [];
+        updateSearchBanner();
+        updateAudioPlaylist();
+        renderFileList();
+        return;
+      }
+
+      const run = () => executeRecursiveSearch(query);
+      if (immediate) {
+        run();
+      } else {
+        state.searchDebounceTimer = setTimeout(run, 220);
+      }
+    }
+
+    async function executeRecursiveSearch(rawQuery) {
+      const token = ++state.searchToken;
+      const query = rawQuery.toLowerCase();
+
+      state.isSearching = true;
+      state.searchResults = [];
+      updateSearchBanner();
+      renderFileList();
+
+      const results = [];
+      let lastYieldTime = performance.now();
+
+      try {
+        if (state.mode === 'fsa' && state.dirStack.length > 0) {
+          const rootObj = state.dirStack[0];
+
+          async function walkFSA(dirHandle, pathSegments, handleChain) {
+            if (token !== state.searchToken) return;
+
+            for await (const [name, handle] of dirHandle.entries()) {
+              if (token !== state.searchToken) return;
+
+              const matchesQuery = name.toLowerCase().includes(query);
+
+              if (handle.kind === 'directory') {
+                if (matchesQuery) {
+                  results.push({
+                    name,
+                    kind: 'directory',
+                    category: 'folder',
+                    handle,
+                    relativePath: pathSegments.join(' / '),
+                    targetStack: [...handleChain, { name, handle }]
+                  });
+                }
+                await walkFSA(
+                  handle,
+                  [...pathSegments, name],
+                  [...handleChain, { name, handle }]
+                );
+              } else {
+                const category = getFileCategory(name);
+                if (matchesQuery) {
+                  let size = 0;
+                  try {
+                    const f = await handle.getFile();
+                    size = f.size;
+                  } catch (_) {}
+
+                  results.push({
+                    name,
+                    kind: 'file',
+                    category,
+                    ext: getFileExtension(name),
+                    size,
+                    handle,
+                    parentDirHandle: dirHandle,
+                    relativePath: pathSegments.join(' / '),
+                    targetStack: [...handleChain]
+                  });
+                }
+              }
+
+              // Yield to UI thread periodically and stream progressive matches
+              if (performance.now() - lastYieldTime > 65) {
+                if (token !== state.searchToken) return;
+                state.searchResults = [...results];
+                updateSearchBanner();
+                renderFileList();
+                await new Promise(r => setTimeout(r, 0));
+                lastYieldTime = performance.now();
+              }
+            }
+          }
+
+          await walkFSA(rootObj.handle, [rootObj.name], [rootObj]);
+
+        } else if (state.mode === 'fallback' && state.fallbackTree) {
+          const rootNode = state.fallbackTree;
+
+          function walkFallback(node, displaySegments, relPathSegments) {
+            if (token !== state.searchToken) return;
+
+            for (const dirName of Object.keys(node.dirs)) {
+              if (token !== state.searchToken) return;
+              const childNode = node.dirs[dirName];
+              const nextRelPath = [...relPathSegments, dirName];
+
+              if (dirName.toLowerCase().includes(query)) {
+                results.push({
+                  name: dirName,
+                  kind: 'directory',
+                  category: 'folder',
+                  relativePath: displaySegments.join(' / '),
+                  targetFallbackPath: nextRelPath
+                });
+              }
+
+              walkFallback(childNode, [...displaySegments, dirName], nextRelPath);
+            }
+
+            for (const fileEntry of node.files) {
+              if (token !== state.searchToken) return;
+              if (fileEntry.name.toLowerCase().includes(query)) {
+                results.push({
+                  ...fileEntry,
+                  relativePath: displaySegments.join(' / '),
+                  targetFallbackPath: [...relPathSegments]
+                });
+              }
+            }
+          }
+
+          walkFallback(rootNode, [rootNode.name], []);
+        }
+
+        if (token !== state.searchToken) return;
+
+        // Sort: folders first, then files alphabetically
+        sortEntries(results);
+        state.searchResults = results;
+      } catch (err) {
+        if (token === state.searchToken) {
+          console.error('Lỗi tìm kiếm đệ quy:', err);
+          showToast('Có lỗi xảy ra khi quét thư mục con', 'error');
+        }
+      } finally {
+        if (token === state.searchToken) {
+          state.isSearching = false;
+          updateSearchBanner();
+          updateAudioPlaylist();
+          renderFileList();
+        }
+      }
+    }
+
+    function updateSearchBanner() {
+      if (!isRecursiveSearchActive()) {
+        el.searchStatusBanner.classList.add('hidden');
+        return;
+      }
+
+      el.searchStatusBanner.classList.remove('hidden');
+      const filteredCount = getFilteredSearchResults().length;
+
+      if (state.isSearching) {
+        el.searchSpinner.classList.remove('hidden');
+        el.searchStatusText.textContent = `Đang quét các thư mục con... (${filteredCount} kết quả)`;
+      } else {
+        el.searchSpinner.classList.add('hidden');
+        el.searchStatusText.textContent = `Tìm thấy ${filteredCount} kết quả trên toàn cây thư mục`;
+      }
+    }
+
+    function getFilteredSearchResults() {
+      return state.searchResults.filter(item => {
+        if (state.currentFilter === 'all') return true;
+        if (item.kind === 'directory') return false; // Hide folders when filtering specific media type
+        return item.category === state.currentFilter;
+      });
+    }
+
+    async function jumpToEntryFolder(item) {
+      // Clear search and navigate straight to the folder containing this item
+      state.searchQuery = '';
+      el.searchInput.value = '';
+      el.clearSearchBtn.classList.add('hidden');
+      state.searchToken++;
+      state.isSearching = false;
+      state.searchResults = [];
+      updateSearchBanner();
+
+      if (state.mode === 'fsa' && item.targetStack) {
+        state.dirStack = [...item.targetStack];
+        await loadFSADirectory(state.dirStack[state.dirStack.length - 1].handle);
+      } else if (state.mode === 'fallback' && item.targetFallbackPath) {
+        state.fallbackPath = [...item.targetFallbackPath];
+        loadFallbackDirectory(state.fallbackPath);
+      }
+      showToast(`Đã chuyển tới: ${item.relativePath || 'Thư mục gốc'}`, 'info');
+    }
+
+    // Build virtual folder tree from fallback <input type="file" webkitdirectory>
+    function buildFallbackTree(fileList) {
+      const root = { name: 'Thư mục đã chọn', dirs: {}, files: [] };
+      const files = Array.from(fileList);
+
+      if (files.length > 0 && files[0].webkitRelativePath) {
+        root.name = files[0].webkitRelativePath.split('/')[0] || 'Thư mục';
+      }
+
+      for (const file of files) {
+        const relPath = file.webkitRelativePath || file.name;
+        const parts = relPath.split('/');
+        // If webkitRelativePath has root folder prefix, skip index 0
+        const startIdx = file.webkitRelativePath ? 1 : 0;
+        let current = root;
+
+        for (let i = startIdx; i < parts.length - 1; i++) {
+          const dirName = parts[i];
+          if (!current.dirs[dirName]) {
+            current.dirs[dirName] = { name: dirName, dirs: {}, files: [] };
+          }
+          current = current.dirs[dirName];
+        }
+
+        current.files.push({
+          name: file.name,
+          kind: 'file',
+          category: getFileCategory(file.name),
+          ext: getFileExtension(file.name),
+          size: file.size,
+          file
+        });
+      }
+      return root;
+    }
+
+    function loadFallbackDirectory(pathArray) {
+      let node = state.fallbackTree;
+      for (const segment of pathArray) {
+        if (node.dirs[segment]) node = node.dirs[segment];
+      }
+
+      const items = [];
+      for (const dirName of Object.keys(node.dirs)) {
+        items.push({
+          name: dirName,
+          kind: 'directory',
+          category: 'folder'
+        });
+      }
+      items.push(...node.files);
+      sortEntries(items);
+      state.entries = items;
+      updateAudioPlaylist();
+      renderBreadcrumbs();
+      renderFileList();
+    }
+
+    function sortEntries(items) {
+      items.sort((a, b) => {
+        if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1;
+        return a.name.localeCompare(b.name, 'vi', { numeric: true, sensitivity: 'base' });
+      });
+    }
+
+    function updateAudioPlaylist() {
+      const sourceList = isRecursiveSearchActive() ? getFilteredSearchResults() : state.entries;
+      state.audioPlaylist = sourceList.filter(item => item.kind === 'file' && item.category === 'audio');
+      if (state.activeEntry && state.activeEntry.category === 'audio') {
+        state.currentAudioIndex = state.audioPlaylist.findIndex(
+          item => item.name === state.activeEntry.name && (item.relativePath || '') === (state.activeEntry.relativePath || '')
+        );
+      } else {
+        state.currentAudioIndex = -1;
+      }
+    }
+
+    // ==========================================
+    // 5. RENDERING SIDEBAR (BREADCRUMBS & LIST)
+    // ==========================================
+    function renderBreadcrumbs() {
+      const crumbs = state.mode === 'fsa'
+        ? state.dirStack.map(d => d.name)
+        : (state.fallbackTree ? [state.fallbackTree.name, ...state.fallbackPath] : []);
+
+      if (crumbs.length === 0) {
+        el.breadcrumbBar.classList.add('hidden');
+        return;
+      }
+
+      el.breadcrumbBar.classList.remove('hidden');
+      el.breadcrumbBar.innerHTML = '';
+
+      crumbs.forEach((name, idx) => {
+        const isLast = idx === crumbs.length - 1;
+        const btn = document.createElement('button');
+        btn.className = `px-1.5 py-0.5 rounded hover:bg-slate-800 transition-colors truncate max-w-[130px] shrink-0 ${isLast ? 'text-slate-200 font-medium' : 'text-slate-400'}`;
+        btn.textContent = name;
+        btn.title = name;
+        btn.onclick = async () => {
+          if (isLast && !isRecursiveSearchActive()) return;
+          if (isRecursiveSearchActive()) {
+            state.searchQuery = '';
+            el.searchInput.value = '';
+            el.clearSearchBtn.classList.add('hidden');
+            state.searchToken++;
+            state.isSearching = false;
+            state.searchResults = [];
+            updateSearchBanner();
+          }
+          if (state.mode === 'fsa') {
+            state.dirStack = state.dirStack.slice(0, idx + 1);
+            await loadFSADirectory(state.dirStack[idx].handle);
+          } else {
+            state.fallbackPath = state.fallbackPath.slice(0, idx);
+            loadFallbackDirectory(state.fallbackPath);
+          }
+        };
+        el.breadcrumbBar.appendChild(btn);
+
+        if (!isLast) {
+          const sep = document.createElement('span');
+          sep.className = 'text-slate-600 shrink-0';
+          sep.textContent = '/';
+          el.breadcrumbBar.appendChild(sep);
+        }
+      });
+    }
+
+    function renderFileList() {
+      if (!state.mode) {
+        el.emptyExplorerState.classList.remove('hidden');
+        el.itemCountText.textContent = '0 mục';
+        return;
+      }
+
+      const inSearchMode = isRecursiveSearchActive();
+      const filtered = inSearchMode
+        ? getFilteredSearchResults()
+        : state.entries.filter(item => {
+            if (state.currentFilter === 'all') return true;
+            if (item.kind === 'directory') return true; // Keep folders visible for navigation
+            return item.category === state.currentFilter;
+          });
+
+      el.itemCountText.textContent = inSearchMode
+        ? `${filtered.length} kết quả`
+        : `${filtered.length} mục`;
+
+      el.fileListContainer.innerHTML = '';
+
+      // Back to parent directory button if inside a subdirectory (only when not searching globally)
+      const canGoUp = !inSearchMode && ((state.mode === 'fsa' && state.dirStack.length > 1) || (state.mode === 'fallback' && state.fallbackPath.length > 0));
+      if (canGoUp) {
+        const upRow = document.createElement('button');
+        upRow.className = 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-xs text-slate-400 hover:text-white hover:bg-slate-800/70 transition-colors';
+        upRow.innerHTML = `
+          <svg class="w-4 h-4 text-slate-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+          </svg>
+          <span class="font-mono">.. (Quay lại)</span>
+        `;
+        upRow.onclick = async () => {
+          if (state.mode === 'fsa') {
+            state.dirStack.pop();
+            await loadFSADirectory(state.dirStack[state.dirStack.length - 1].handle);
+          } else {
+            state.fallbackPath.pop();
+            loadFallbackDirectory(state.fallbackPath);
+          }
+        };
+        el.fileListContainer.appendChild(upRow);
+      }
+
+      if (filtered.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.className = 'py-10 px-4 text-center text-xs text-slate-500';
+        emptyMsg.textContent = state.isSearching
+          ? 'Đang quét các thư mục con...'
+          : 'Không tìm thấy tệp phù hợp.';
+        el.fileListContainer.appendChild(emptyMsg);
+        return;
+      }
+
+      filtered.forEach(item => {
+        const isActive = state.activeEntry &&
+          state.activeEntry.name === item.name &&
+          (state.activeEntry.relativePath || '') === (item.relativePath || '') &&
+          item.kind === 'file';
+
+        const row = document.createElement('div');
+        row.className = `group flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+          isActive
+            ? 'bg-indigo-600/20 text-white border border-indigo-500/30'
+            : 'text-slate-300 hover:bg-slate-800/70 border border-transparent'
+        }`;
+
+        const pathHtml = inSearchMode && item.relativePath
+          ? `<div class="text-[10px] text-indigo-400/90 truncate mt-0.5 flex items-center gap-1" title="Vị trí: ${item.relativePath}">
+              <svg class="w-2.5 h-2.5 shrink-0 opacity-80" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+              </svg>
+              <span class="truncate">${item.relativePath}</span>
+            </div>`
+          : '';
+
+        const left = document.createElement('div');
+        left.className = 'flex items-center gap-2.5 min-w-0 flex-1';
+        left.innerHTML = `
+          ${getCategoryIcon(item.kind, item.category)}
+          <div class="min-w-0 flex-1">
+            <div class="text-xs font-medium truncate ${isActive ? 'text-indigo-200' : 'text-slate-200'}">${item.name}</div>
+            <div class="text-[10px] text-slate-500 flex items-center gap-2">
+              <span>${item.kind === 'directory' ? 'Thư mục' : (item.ext ? item.ext.toUpperCase() : 'Tệp')}</span>
+              ${item.kind === 'file' ? `<span>• ${formatBytes(item.size)}</span>` : ''}
+            </div>
+            ${pathHtml}
+          </div>
+        `;
+
+        row.appendChild(left);
+
+        const rightActions = document.createElement('div');
+        rightActions.className = 'flex items-center gap-0.5 shrink-0';
+
+        // Jump to parent folder button during global recursive search
+        if (inSearchMode && item.kind === 'file') {
+          const jumpBtn = document.createElement('button');
+          jumpBtn.className = 'opacity-70 sm:opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-slate-400 hover:text-indigo-300 hover:bg-indigo-500/15 transition-all';
+          jumpBtn.title = `Mở thư mục chứa tệp (${item.relativePath || 'Thư mục gốc'})`;
+          jumpBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>`;
+          jumpBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await jumpToEntryFolder(item);
+          };
+          rightActions.appendChild(jumpBtn);
+        }
+
+        // Delete button (only in FSA mode for files)
+        if (state.mode === 'fsa' && item.kind === 'file') {
+          const delBtn = document.createElement('button');
+          delBtn.className = 'opacity-0 group-hover:opacity-100 p-1.5 rounded-md text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all';
+          delBtn.title = 'Xóa tệp';
+          delBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>`;
+          delBtn.onclick = async (e) => {
+            e.stopPropagation();
+            await deleteFileEntry(item);
+          };
+          rightActions.appendChild(delBtn);
+        }
+
+        if (rightActions.children.length > 0) {
+          row.appendChild(rightActions);
+        }
+
+        row.onclick = async () => {
+          if (item.kind === 'directory') {
+            if (inSearchMode) {
+              // Exit search and enter the matched subfolder directly
+              state.searchQuery = '';
+              el.searchInput.value = '';
+              el.clearSearchBtn.classList.add('hidden');
+              state.searchToken++;
+              state.isSearching = false;
+              state.searchResults = [];
+              updateSearchBanner();
+
+              if (state.mode === 'fsa' && item.targetStack) {
+                state.dirStack = [...item.targetStack];
+                await loadFSADirectory(item.handle);
+              } else if (state.mode === 'fallback' && item.targetFallbackPath) {
+                state.fallbackPath = [...item.targetFallbackPath];
+                loadFallbackDirectory(state.fallbackPath);
+              }
+              return;
+            }
+
+            if (state.mode === 'fsa') {
+              state.dirStack.push({ name: item.name, handle: item.handle });
+              await loadFSADirectory(item.handle);
+            } else {
+              state.fallbackPath.push(item.name);
+              loadFallbackDirectory(state.fallbackPath);
+            }
+          } else {
+            await openFileEntry(item);
+            toggleMobileSidebar(true);
+          }
+        };
+
+        el.fileListContainer.appendChild(row);
+      });
+    }
+
+    // ==========================================
+    // 6. VIEWER & MEDIA PLAYER ENGINE
+    // ==========================================
+    function hideAllViewers() {
+      el.welcomeViewer.classList.add('hidden');
+      el.audioViewer.classList.add('hidden');
+      el.videoViewer.classList.add('hidden');
+      el.pdfViewer.classList.add('hidden');
+      el.textViewer.classList.add('hidden');
+      el.imageViewer.classList.add('hidden');
+      el.unsupportedViewer.classList.add('hidden');
+
+      // Pause active media
+      el.audioElement.pause();
+      el.videoElement.pause();
+      el.pdfFrame.src = 'about:blank';
+    }
+
+    async function getFileObject(entry) {
+      if (entry.file) return entry.file;
+      if (entry.handle) return await entry.handle.getFile();
+      throw new Error('Không thể đọc tệp');
+    }
+
+    async function openFileEntry(entry) {
+      try {
+        const file = await getFileObject(entry);
+        revokeActiveBlob();
+        hideAllViewers();
+
+        state.activeEntry = entry;
+        state.textDirty = false;
+        el.unsavedIndicator.classList.add('hidden');
+
+        // Update Top Viewer Header
+        el.viewerHeader.classList.remove('hidden');
+        el.activeFileBadge.textContent = entry.ext || 'FILE';
+        el.activeFileName.textContent = entry.name;
+        el.activeFileSize.textContent = formatBytes(file.size);
+        el.viewerHeaderActions.innerHTML = '';
+
+        renderFileList(); // Highlight active item
+
+        const category = entry.category;
+
+        if (category === 'audio') {
+          const url = URL.createObjectURL(file);
+          state.activeBlobUrl = url;
+          state.currentAudioIndex = state.audioPlaylist.findIndex(
+            i => i.name === entry.name && (i.relativePath || '') === (entry.relativePath || '')
+          );
+
+          el.audioViewer.classList.remove('hidden');
+          el.audioTitle.textContent = entry.name;
+          el.audioTrackIndex.textContent = `Bài ${state.currentAudioIndex + 1} / ${state.audioPlaylist.length}`;
+          el.audioElement.src = url;
+          el.audioElement.playbackRate = parseFloat(el.audioSpeedSelect.value);
+          el.audioElement.play().catch(() => {});
+
+          addDownloadHeaderButton(file, entry.name);
+
+        } else if (category === 'video') {
+          const url = URL.createObjectURL(file);
+          state.activeBlobUrl = url;
+
+          el.videoViewer.classList.remove('hidden');
+          el.videoElement.src = url;
+          el.videoElement.play().catch(() => {});
+
+          addDownloadHeaderButton(file, entry.name);
+
+        } else if (category === 'pdf') {
+          const pdfBlob = new Blob([file], { type: 'application/pdf' });
+          const url = URL.createObjectURL(pdfBlob);
+          state.activeBlobUrl = url;
+
+          el.pdfViewer.classList.remove('hidden');
+          el.pdfFrame.src = url;
+
+          // Button to open PDF in a new browser tab
+          const newTabBtn = document.createElement('button');
+          newTabBtn.className = 'flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-colors';
+          newTabBtn.innerHTML = `<span>Mở tab mới</span>`;
+          newTabBtn.onclick = () => window.open(url, '_blank');
+          el.viewerHeaderActions.appendChild(newTabBtn);
+
+        } else if (category === 'text') {
+          const content = await file.text();
+          el.textViewer.classList.remove('hidden');
+          el.textEditorArea.value = content;
+          updateTextStats();
+
+          // Save button
+          const saveBtn = document.createElement('button');
+          saveBtn.id = 'saveTextBtn';
+          saveBtn.className = 'flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white shadow-sm transition-colors';
+          saveBtn.innerHTML = `
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+            </svg>
+            <span>Lưu tệp</span>
+          `;
+          saveBtn.onclick = () => saveCurrentTextFile();
+          el.viewerHeaderActions.appendChild(saveBtn);
+
+        } else if (category === 'image') {
+          const url = URL.createObjectURL(file);
+          state.activeBlobUrl = url;
+
+          el.imageViewer.classList.remove('hidden');
+          el.imageElement.src = url;
+          addDownloadHeaderButton(file, entry.name);
+
+        } else {
+          el.unsupportedViewer.classList.remove('hidden');
+          el.downloadUnsupportedBtn.onclick = () => triggerDownload(file, entry.name);
+        }
+
+      } catch (err) {
+        console.error(err);
+        showToast('Không thể mở tệp này: ' + err.message, 'error');
+      }
+    }
+
+    function addDownloadHeaderButton(blobOrFile, filename) {
+      const btn = document.createElement('button');
+      btn.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 transition-colors';
+      btn.textContent = 'Tải về';
+      btn.onclick = () => triggerDownload(blobOrFile, filename);
+      el.viewerHeaderActions.appendChild(btn);
+    }
+
+    function triggerDownload(blobOrFile, filename) {
+      const url = URL.createObjectURL(blobOrFile);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // ==========================================
+    // 7. TEXT EDITING, CREATE & DELETE FILE
+    // ==========================================
+    function updateTextStats() {
+      const text = el.textEditorArea.value;
+      const lines = text ? text.split('\n').length : 0;
+      el.textStats.textContent = `${lines} dòng · ${text.length} ký tự`;
+    }
+
+    async function saveCurrentTextFile() {
+      if (!state.activeEntry || state.activeEntry.category !== 'text') return;
+      const content = el.textEditorArea.value;
+
+      if (state.mode === 'fsa' && state.activeEntry.handle) {
+        try {
+          const writable = await state.activeEntry.handle.createWritable();
+          await writable.write(content);
+          await writable.close();
+
+          state.textDirty = false;
+          el.unsavedIndicator.classList.add('hidden');
+          const updatedFile = await state.activeEntry.handle.getFile();
+          state.activeEntry.size = updatedFile.size;
+          el.activeFileSize.textContent = formatBytes(updatedFile.size);
+          renderFileList();
+          showToast(`Đã lưu "${state.activeEntry.name}" trực tiếp vào ổ đĩa!`, 'success');
+        } catch (err) {
+          showToast('Lỗi khi lưu trực tiếp: ' + err.message, 'error');
+        }
+      } else {
+        // Fallback mode: download edited text file
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        triggerDownload(blob, state.activeEntry.name);
+        state.textDirty = false;
+        el.unsavedIndicator.classList.add('hidden');
+        showToast(`Đã tải xuống bản lưu "${state.activeEntry.name}"`, 'info');
+      }
+    }
+
+    async function createNewTxtFile() {
+      if (state.mode !== 'fsa' || state.dirStack.length === 0) return;
+
+      const filename = await openModal({
+        title: 'Tạo tệp văn bản mới',
+        desc: 'Nhập tên tệp muốn tạo trong thư mục hiện tại:',
+        showInput: true,
+        defaultValue: 'ghi-chu.txt',
+        confirmText: 'Tạo tệp'
+      });
+
+      if (!filename) return;
+      const finalName = filename.includes('.') ? filename : `${filename}.txt`;
+
+      try {
+        const currentDir = state.dirStack[state.dirStack.length - 1].handle;
+        const newHandle = await currentDir.getFileHandle(finalName, { create: true });
+        await loadFSADirectory(currentDir);
+
+        const createdEntry = state.entries.find(e => e.name === finalName);
+        if (createdEntry) {
+          await openFileEntry(createdEntry);
+          el.textEditorArea.focus();
+        }
+        showToast(`Đã tạo tệp "${finalName}"`, 'success');
+      } catch (err) {
+        showToast('Không thể tạo tệp: ' + err.message, 'error');
+      }
+    }
+
+    async function deleteFileEntry(entry) {
+      if (state.mode !== 'fsa' || state.dirStack.length === 0) return;
+
+      const confirmed = await openModal({
+        title: 'Xác nhận xóa tệp',
+        desc: `Bạn có chắc chắn muốn xóa vĩnh viễn "${entry.name}" khỏi máy tính không?`,
+        confirmText: 'Xóa tệp',
+        isDanger: true
+      });
+
+      if (!confirmed) return;
+
+      try {
+        const targetDir = entry.parentDirHandle || state.dirStack[state.dirStack.length - 1].handle;
+        await targetDir.removeEntry(entry.name);
+
+        if (state.activeEntry && state.activeEntry.name === entry.name && (state.activeEntry.relativePath || '') === (entry.relativePath || '')) {
+          revokeActiveBlob();
+          hideAllViewers();
+          el.viewerHeader.classList.add('hidden');
+          el.welcomeViewer.classList.remove('hidden');
+          state.activeEntry = null;
+        }
+
+        if (isRecursiveSearchActive()) {
+          state.searchResults = state.searchResults.filter(
+            r => !(r.name === entry.name && (r.relativePath || '') === (entry.relativePath || ''))
+          );
+          updateSearchBanner();
+          updateAudioPlaylist();
+          renderFileList();
+        } else {
+          await loadFSADirectory(state.dirStack[state.dirStack.length - 1].handle);
+        }
+        showToast(`Đã xóa "${entry.name}"`, 'info');
+      } catch (err) {
+        showToast('Lỗi khi xóa tệp: ' + err.message, 'error');
+      }
+    }
+
+    // ==========================================
+    // 8. AUDIO & VIDEO CONTROLS
+    // ==========================================
+    function playAdjacentTrack(step) {
+      if (state.audioPlaylist.length === 0) return;
+      let nextIdx = state.currentAudioIndex + step;
+      if (nextIdx >= state.audioPlaylist.length) nextIdx = 0;
+      if (nextIdx < 0) nextIdx = state.audioPlaylist.length - 1;
+      openFileEntry(state.audioPlaylist[nextIdx]);
+    }
+
+    el.audioElement.addEventListener('play', () => el.eqVisualizer.classList.remove('paused'));
+    el.audioElement.addEventListener('pause', () => el.eqVisualizer.classList.add('paused'));
+    el.audioElement.addEventListener('ended', () => {
+      if (!el.audioElement.loop && state.audioPlaylist.length > 1) {
+        playAdjacentTrack(1);
+      }
+    });
+
+    el.prevTrackBtn.onclick = () => playAdjacentTrack(-1);
+    el.nextTrackBtn.onclick = () => playAdjacentTrack(1);
+
+    el.audioLoopBtn.onclick = () => {
+      el.audioElement.loop = !el.audioElement.loop;
+      el.audioLoopBtn.classList.toggle('text-indigo-400', el.audioElement.loop);
+      el.audioLoopBtn.classList.toggle('bg-indigo-600/20', el.audioElement.loop);
+      el.audioLoopBtn.classList.toggle('text-slate-400', !el.audioElement.loop);
+      showToast(el.audioElement.loop ? 'Đã bật lặp lại 1 bài' : 'Đã tắt lặp lại 1 bài', 'info');
+    };
+
+    el.audioSpeedSelect.onchange = (e) => {
+      el.audioElement.playbackRate = parseFloat(e.target.value);
+    };
+
+    // Video speed buttons
+    el.videoSpeedBtns.forEach(btn => {
+      btn.onclick = () => {
+        const speed = parseFloat(btn.dataset.speed);
+        el.videoElement.playbackRate = speed;
+        el.videoSpeedBtns.forEach(b => {
+          b.className = 'v-speed-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300';
+        });
+        btn.className = 'v-speed-btn px-2 py-1 rounded bg-indigo-600 text-white font-medium';
+      };
+    });
+
+    el.videoFullscreenBtn.onclick = () => {
+      if (el.videoElement.requestFullscreen) {
+        el.videoElement.requestFullscreen();
+      }
+    };
+
+    // ==========================================
+    // 9. EVENT LISTENERS & SHORTCUTS
+    // ==========================================
+    el.openFolderBtn.onclick = handleOpenFolder;
+    el.openFilesBtn.onclick = () => el.fallbackFilesInput.click();
+    el.newTxtBtn.onclick = createNewTxtFile;
+
+    el.fallbackFolderInput.onchange = (e) => {
+      if (!e.target.files || e.target.files.length === 0) return;
+      state.mode = 'fallback';
+      state.dirStack = [];
+      state.fallbackPath = [];
+      state.searchToken++;
+      state.searchResults = [];
+      state.fallbackTree = buildFallbackTree(e.target.files);
+      el.newTxtBtn.classList.add('hidden');
+      el.accessTypeText.textContent = 'Chế độ chỉ đọc (Fallback)';
+      loadFallbackDirectory([]);
+      if (state.searchQuery.trim()) triggerRecursiveSearch(true);
+      showToast(`Đã tải ${e.target.files.length} tệp từ thư mục`, 'success');
+      e.target.value = '';
+    };
+
+    el.fallbackFilesInput.onchange = (e) => {
+      if (!e.target.files || e.target.files.length === 0) return;
+      state.mode = 'fallback';
+      state.dirStack = [];
+      state.fallbackPath = [];
+      state.searchToken++;
+      state.searchResults = [];
+      const items = Array.from(e.target.files).map(file => ({
+        name: file.name,
+        kind: 'file',
+        category: getFileCategory(file.name),
+        ext: getFileExtension(file.name),
+        size: file.size,
+        file
+      }));
+      sortEntries(items);
+      state.fallbackTree = { name: 'Tệp đã chọn', dirs: {}, files: items };
+      state.entries = items;
+      el.newTxtBtn.classList.add('hidden');
+      el.accessTypeText.textContent = 'Tệp lẻ đã chọn';
+      updateAudioPlaylist();
+      renderBreadcrumbs();
+      renderFileList();
+      if (state.searchQuery.trim()) triggerRecursiveSearch(true);
+      if (items.length === 1) openFileEntry(items[0]);
+      showToast(`Đã mở ${items.length} tệp`, 'success');
+      e.target.value = '';
+    };
+
+    // Search & Filter (Recursive across all subfolders)
+    el.searchInput.oninput = (e) => {
+      state.searchQuery = e.target.value;
+      el.clearSearchBtn.classList.toggle('hidden', !state.searchQuery);
+      triggerRecursiveSearch(false);
+    };
+
+    function clearGlobalSearch() {
+      state.searchQuery = '';
+      el.searchInput.value = '';
+      el.clearSearchBtn.classList.add('hidden');
+      triggerRecursiveSearch(true);
+    }
+
+    el.clearSearchBtn.onclick = clearGlobalSearch;
+    el.exitSearchBtn.onclick = clearGlobalSearch;
+
+    el.filterPills.forEach(pill => {
+      pill.onclick = () => {
+        state.currentFilter = pill.dataset.filter;
+        el.filterPills.forEach(p => {
+          p.className = 'filter-pill px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800/80 text-slate-400 hover:text-slate-200 shrink-0 transition-colors';
+        });
+        pill.className = 'filter-pill active px-2.5 py-1 rounded-md text-[11px] font-medium bg-indigo-600 text-white shrink-0 transition-colors';
+        updateSearchBanner();
+        updateAudioPlaylist();
+        renderFileList();
+      };
+    });
+
+    // Text Editor Input & Search
+    el.textEditorArea.oninput = () => {
+      updateTextStats();
+      if (!state.textDirty) {
+        state.textDirty = true;
+        el.unsavedIndicator.classList.remove('hidden');
+      }
+    };
+
+    el.findNextTextBtn.onclick = () => {
+      const term = el.findInTextInput.value;
+      if (!term) return;
+      const text = el.textEditorArea.value;
+      let idx = text.toLowerCase().indexOf(term.toLowerCase(), state.lastSearchIndex);
+      if (idx === -1) {
+        idx = text.toLowerCase().indexOf(term.toLowerCase(), 0);
+      }
+      if (idx !== -1) {
+        el.textEditorArea.focus();
+        el.textEditorArea.setSelectionRange(idx, idx + term.length);
+        state.lastSearchIndex = idx + term.length;
+      } else {
+        showToast('Không tìm thấy từ khóa trong văn bản', 'warning');
+      }
+    };
+
+    // Mobile Sidebar
+    el.toggleSidebarBtn.onclick = () => toggleMobileSidebar(false);
+    el.sidebarBackdrop.onclick = () => toggleMobileSidebar(true);
+
+    // Global Keyboard Shortcuts
+    window.addEventListener('keydown', (e) => {
+      // Ctrl + S to save text file
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        if (state.activeEntry && state.activeEntry.category === 'text') {
+          e.preventDefault();
+          saveCurrentTextFile();
+        }
+      }
+
+      // Space to toggle play/pause when not typing in inputs/textarea
+      const tag = document.activeElement.tagName;
+      if (e.code === 'Space' && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'BUTTON') {
+        if (state.activeEntry?.category === 'audio') {
+          e.preventDefault();
+          el.audioElement.paused ? el.audioElement.play() : el.audioElement.pause();
+        } else if (state.activeEntry?.category === 'video') {
+          e.preventDefault();
+          el.videoElement.paused ? el.videoElement.play() : el.videoElement.pause();
+        }
+      }
+    });
+  </script>
+</body>
+</html>
